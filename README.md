@@ -35,7 +35,6 @@ El agente toma decisiones en tiempo real: cuándo usar Qdrant, cuándo consultar
 - **n8n**: Herramienta de automatización no-code.
 - **PostgreSQL**: Base de datos estructurada para datos tabulares.
 - **Qdrant**: Base de datos vectorial para búsquedas semánticas.
-- **Redis**: Manejo de cola de ejecución de workers en n8n.
 
 ---
 
