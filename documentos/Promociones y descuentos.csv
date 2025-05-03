@@ -1,0 +1,11 @@
+Tipo,Nombre,Descripcion,Descuento,Vigencia,Condiciones,Codigo
+Promoción,Menú Ejecutivo,"Disponible de lunes a viernes al mediodía, incluye entrada + plato principal + postre + bebida",Precio fijo $14.90,Permanente,"Solo mediodía de lunes a viernes, varía semanalmente",
+Promoción,Happy Hour,"2x1 en cócteles seleccionados, tabla de aperitivos a mitad de precio",50%,"Lunes a jueves de 17:00 a 19:00",Solo en barra y terraza,
+Promoción,Domingo Familiar,20% de descuento en la carta completa,20%,Todos los domingos,Niños menores de 10 años comen gratis (plato infantil máximo 2 niños por mesa),
+Promoción,Miércoles Gourmet,30% de descuento en todos nuestros platos regionales,30%,Todos los miércoles,No acumulable con otros descuentos,
+Código,DEVNEWCLIENT,15% de descuento en primera reserva o pedido,15%,Permanente,"Válido para consumo mínimo de $20, no aplica a menús especiales ni festividades",DEVNEWCLIENT
+Código,BDAYDEV,Postre y cóctel gratis para el cumpleañero,100% en postre y cóctel,Permanente,"Necesario presentar identificación, válido +/- 3 días de la fecha de cumpleaños, mínimo 2 comensales",BDAYDEV
+Código,DEVTAKEAWAY10,10% de descuento en pedidos para recoger en el local,10%,Permanente,"No aplicable a pedidos a través de plataformas externas, pedido mínimo: $15",DEVTAKEAWAY10
+Código,DEVFOLLOWER,5% de descuento permanente al seguirnos en Instagram y mostrar el perfil,5%,Permanente,"Acumulable con otras promociones (excepto Happy Hour), mostrar perfil siguiendo la cuenta",DEVFOLLOWER
+Código,DEVELOPER,15% de descuento para profesionales de tecnología mostrando credencial,15%,"Lunes y martes todo el día",No acumulable con otras promociones,DEVELOPER
+Promoción Especial,Trio Especial,3 platos regionales + 2 refrescos por $15,Precio fijo $15,Miércoles,No acumulable con otros descuentos, 

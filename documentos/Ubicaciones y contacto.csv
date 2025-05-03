@@ -1,0 +1,12 @@
+Tipo,Nombre,Direccion,Horario,Telefono,Email,Social
+Sede,Principal,Plaza Central Shopping Mall Floor 3 Downtown,"Lunes a jueves: 12:00-22:00; Viernes y sábado: 12:00-00:00; Domingo: 12:00-20:00",+1 555-123-4567,info@devfoodplanet.com,@devfoodplanet
+Sucursal,Este,Eastside Mall Level 2 Local F-12 Uptown,"Lunes a jueves: 12:00-22:00; Viernes y sábado: 12:00-00:00; Domingo: 12:00-20:00",+1 555-123-4567,info@devfoodplanet.com,@devfoodplanet
+Sucursal,Oeste,Westview Shopping Center Floor 2 Local 45 Riverside,"Martes a domingo: 12:00-22:00; Lunes: Cerrado",+1 555-123-4567,info@devfoodplanet.com,@devfoodplanet
+Contacto,Reservas,,Horario de atención telefónica: 10:00-21:00,+1 555-123-4567,reservas@devfoodplanet.com,
+Contacto,WhatsApp,,Atención 24/7,+1 555-987-6543,,
+Contacto,Pedidos,,Horario según sede,+1 555-123-4567,,
+Contacto,Eventos,,Lunes a viernes: 09:00-18:00,,eventos@devfoodplanet.com,
+Contacto,Soporte,,Lunes a viernes: 09:00-18:00,,soporte@devfoodplanet.com,
+Social,Instagram,,,,,@devfoodplanet
+Social,Facebook,,,,,facebook.com/devfoodplanet
+Social,Twitter,,,,,@devfoodplanet 

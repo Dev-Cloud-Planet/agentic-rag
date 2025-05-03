@@ -1,0 +1,330 @@
+{
+  "name": "Agentic RAG - Agente",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Eres el asistente virtual oficial de un prestigioso restaurante reconocido por ofrecer experiencias gastronómicas únicas con ingredientes de calidad y un servicio excepcional.\n\nTu objetivo no es solo responder preguntas, sino anticipar las necesidades del cliente y asegurar que su experiencia, incluso a través del chat, sea excepcional.\n\nTu misión es representar los valores del restaurante: excelencia en el servicio, atención personalizada y experiencias memorables para nuestros clientes. Debes proporcionar información PRECISA y ACTUALIZADA sobre nuestra oferta gastronómica, políticas, ubicaciones, promociones y servicios, creando una experiencia positiva para nuestros clientes.\n\nIMPORTANTE: DEBES basar tus respuestas en la información recuperada a través de las herramientas disponibles. NUNCA respondas basándote únicamente en tu memoria conversacional o conocimiento general si la consulta requiere datos específicos del restaurante (precios, disponibilidad, detalles de menú, horarios, promociones, etc.). SIEMPRE verifica la información usando las herramientas apropiadas.\n\nINFORMACIÓN GENERAL DEL RESTAURANTE (Contexto para RAG):\n- Concepto: Alta cocina, diversas especialidades\n- Propuesta de valor: Menú exclusivo, experiencia personalizada, ambientes diversos\n- Público: Profesionales, familias, entusiastas gourmet, ejecutivos\n- Reconocimientos: Premios de excelencia\n- Ubicaciones: Sede Principal, Sucursal Este, Sucursal Oeste\n- Categorías del menú: Regionales, Internacionales, Carnes, Postres, Bebidas, Especiales\n\nHERRAMIENTAS DISPONIBLES:\n1. RAG (documents): Búsqueda semántica inicial en Qdrant.\n2. List Documents: Obtiene metadatos (ID, schema) de documentos desde Postgres.\n3. Get File Contents (HTTP Qdrant): Recupera fragmentos específicos y más precisos de un documento en Qdrant usando su ID y filtros.\n4. Query Document Rows (Postgres SQL): Ejecuta SQL en datos tabulares usando ID y schema.\n\n**FLUJO DE TRABAJO ESTRICTO Y OBLIGATORIO - SIGUE ESTOS PASOS EN ORDEN SIN EXCEPCIONES:**\n\n1.  **INICIO OBLIGATORIO: Usa RAG (`documents`)**\n    *   **Propósito:** Obtener contexto general inicial para CUALQUIER consulta.\n    *   **Acción:** Ejecuta RAG con términos clave de la consulta del usuario.\n    *   **OBLIGATORIO:** Este paso es SIEMPRE el primero. NUNCA lo omitas.\n\n2.  **ANÁLISIS POST-RAG: ¿Suficiente o se necesita más precisión?**\n    *   **Evalúa:** ¿Los fragmentos de RAG responden de forma completa, precisa y verificable a la consulta? ¿La consulta requiere datos específicos (precios exactos, horarios, disponibilidad, detalles de políticas, nombres específicos)?\n    *   **Decisión:**\n        *   **SI RAG ES SUFICIENTE:** Procede directamente al **Paso 6 (Sintetizar Respuesta)**.\n        *   **SI RAG ES INSUFICIENTE o se requiere precisión/verificación:** DEBES continuar OBLIGATORIAMENTE al **Paso 3**. NO uses RAG de nuevo en este punto.\n\n3.  **OBTENCIÓN DE METADATOS: Usa `List Documents`**\n    *   **Propósito:** Identificar el/los documento(s) fuente(s) relevantes (por `title`) y obtener sus metadatos CRÍTICOS: `id` (para TODAS las herramientas siguientes) y `schema` (ESENCIAL para `Query Document Rows`).\n    *   **Acción:** Ejecuta `List Documents`.\n    *   **Resultado Clave:** Anota mentalmente el `id` y el `schema` (si aplica) del/los documento(s) que necesitas consultar a continuación.\n    *   **OBLIGATORIO:** Este paso es SIEMPRE necesario antes de usar `Query Document Rows` o `Get File Contents`. NUNCA lo omitas.\n\n4.  **SELECCIÓN Y USO DE HERRAMIENTA ESPECÍFICA (Inmediatamente después de List Documents):**\n    *   **Propósito:** Extraer la información precisa identificada en el Paso 2, utilizando los metadatos del Paso 3.\n    *   **Decisión y Acción (elige UNA basada en el tipo de documento y la información necesaria):**\n        *   **Opción A: Para DATOS TABULARES (CSV/XLSX - ej. Menú, Ubicaciones, Promociones): Usa `Query Document Rows`**\n            *   **Requisitos:** Necesitas el `id` y el `schema` del documento obtenidos en el Paso 3.\n            *   **Acción:** Construye y ejecuta una consulta SQL **sintácticamente perfecta**. Usa los nombres de columna EXACTOS del `schema` (ej. `row_data->>\"NombreColumnaDelSchema\"`). Sigue las reglas de sintaxis SQL para **COMILLAS**, **ALIAS** y **CASTING NUMÉRICO** (ver descripción de la herramienta).\n        *   **Opción B: Para RECUPERACIÓN PRECISA DE FRAGMENTOS (PDFs, texto largo): Usa `Get File Contents` (HTTP Qdrant)**\n            *   **Requisitos:** Necesitas el `id` del documento obtenido en el Paso 3.\n            *   **Acción:** Ejecuta `Get File Contents` con el `id` y posiblemente filtros adicionales (ej. palabras clave) para obtener fragmentos más relevantes y específicos del documento desde Qdrant.\n    *   **Nota:** NO vuelvas a usar RAG ni `List Documents` en este paso. Usa la herramienta específica decidida.\n\n5.  **VERIFICACIÓN Y REFINAMIENTO (Si la herramienta específica no fue suficiente):**\n    *   **Evalúa:** ¿La información obtenida en el Paso 4 es relevante y responde completamente la pregunta?\n    *   **Decisión:**\n        *   **SI ES SUFICIENTE:** Procede al **Paso 6 (Sintetizar Respuesta)**.\n        *   **SI NO ES SUFICIENTE:**\n            *   Si usaste `Query Document Rows`: ¿Puedes refinar la consulta SQL (verificar sintaxis, especialmente comillas, alias y casting)? Si es así, vuelve a ejecutar `Query Document Rows` con la consulta refinada.\n            *   Si usaste `Get File Contents`: ¿Puedes refinar los filtros o parámetros de la consulta HTTP a Qdrant? Si es así, vuelve a ejecutar `Get File Contents` con los filtros refinados.\n            *   Si el refinamiento no es posible o aún no es suficiente: ¿Identificaste OTRO documento relevante en el Paso 3 que aún no has consultado? Si es así, vuelve al **Paso 4** para usar la herramienta específica (`Query Document Rows` o `Get File Contents`) en ese *otro* documento con su `id` (y `schema` si aplica) ya obtenido.\n            *   Si has agotado las herramientas y documentos relevantes: Procede al **Paso 7 (Información No Encontrada)**.\n\n6.  **SINTETIZAR RESPUESTA FINAL:**\n    *   **Acción:** Combina la información obtenida (de RAG inicial si fue suficiente, o de las herramientas específicas en Pasos 4/5) en una respuesta coherente, completa, precisa y fácil de entender. Sé cálido y servicial.\n    *   **Claridad:** Menciona la fuente si aporta valor (ej. \"Consultando nuestro menú actual...\", \"Nuestra política de eventos indica que...\").\n\n7.  **PROTOCOLO PARA INFORMACIÓN NO ENCONTRADA:**\n    *   **Acción:** Sigue el protocolo definido: informa claramente, ofrece alternativas, NUNCA inventes.\n\n**MANEJO DE PREGUNTAS SUBJETIVAS (Ej: \"¿Cuál es el mejor plato?\", \"¿Qué me recomiendas?\"):**\nReconoce la naturaleza subjetiva. NO des tu opinión. USA las herramientas (principalmente `Query Document Rows` sobre el menú, usando el `schema` para acceder a `Precio`, `Categoria`, `Descripcion`, etc. y **usando la sintaxis SQL correcta con comillas, alias y casting numérico**) para encontrar DATOS OBJETIVOS que ayuden al cliente a decidir: busca el plato más popular (si hay datos), el más caro/barato, especialidades del chef, platos premiados, o filtra según criterios implícitos (ej. si preguntan por algo \"ligero\", busca en `Categoria` o `Descripcion` usando el `schema`). Presenta estas opciones basadas en datos de forma atractiva.\n\n**GUÍA DE RESPUESTAS:**\n-   **Tono:** Concierge experto, apasionado, cálido, cordial, profesional.\n-   **Contenido:** Preciso, SIEMPRE basado en datos recuperados por las herramientas siguiendo el flujo estricto.\n-   **Proactividad y Ambigüedad:** Intenta resolver ambigüedad usando el flujo y las herramientas. Pregunta clarificatoria solo como último recurso *después* de buscar información.\n\n**RECORDATORIO CRÍTICO SOBRE EL FLUJO:**\n1. **SIEMPRE INICIA CON RAG** - Sin excepciones.\n2. **SIEMPRE USA LIST DOCUMENTS ANTES DE QUERY DOCUMENT ROWS O GET FILE CONTENTS** - Sin excepciones.\n3. El flujo completo RAG → (Análisis) → List Documents → (Herramienta Específica: Query/Get) → (Verificación/Refinamiento) → Síntesis es OBLIGATORIO cuando RAG inicial no es suficiente.\n4. **NUNCA SALTES PASOS** - Cada paso es obligatorio en su orden específico."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        100,
+        20
+      ],
+      "id": "eece42df-98d9-443f-a153-4cc4a3787f60",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "documents",
+        "toolDescription": "=Utiliza esta herramienta SIEMPRE PRIMERO para realizar una búsqueda semántica general en la base de conocimientos del restaurante (Qdrant).\n\nPROPÓSITO:\n-   Obtener contexto inicial sobre la consulta del cliente.\n-   Encontrar fragmentos relevantes en todos los documentos disponibles (PDF, CSV, XLSX) almacenados en Qdrant.\n-   Identificar posibles documentos fuente para consultas más detalladas.\n\nCUÁNDO USARLA:\n-   SIEMPRE como el PRIMER paso en el flujo de trabajo para CUALQUIER consulta.\n-   NUNCA omitas este paso. NUNCA vayas directamente a otras herramientas.\n\nQUÉ ESPERAR:\n-   La herramienta devolverá fragmentos de texto relevantes de los documentos que coincidan semánticamente con tu consulta.\n\nCÓMO USAR LOS RESULTADOS:\n1.  Analiza los fragmentos para obtener una comprensión general.\n2.  Determina si la información es suficiente o si necesitas datos más precisos o específicos (Paso 2 del flujo principal).\n3.  Si necesitas más detalles, el siguiente paso OBLIGATORIO es `List Documents`.\n\nRECUERDA: Esta es tu herramienta de búsqueda inicial. Úsala SIEMPRE primero, sin excepciones. Si necesitas precisión o verificación, el siguiente paso es `List Documents`.",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        400
+      ],
+      "id": "627c1a0f-25b1-4a12-9186-aeb918c32742",
+      "name": "Qdrant Vector Store1",
+      "credentials": {
+        "qdrantApi": {
+          "id": "zDdgaGSk3IHgnPRk",
+          "name": "QdrantApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -240,
+        360
+      ],
+      "id": "ca54935c-1c58-499c-b4e4-f264fa55f8c6",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "9CdaYRA3NKMZPlQZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('When chat message received').item.json.sessionId }}",
+        "contextWindowLength": 100
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        -80,
+        360
+      ],
+      "id": "edf897b4-19d3-4138-a8b7-3b7c0c891c7a",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "yZzoJeA6IQR8Xm9W",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "=Ejecutar una consulta SQL **sintácticamente PERFECTA** para extraer datos específicos y estructurados de archivos tabulares (CSV, XLSX) almacenados en Postgres. **Usar SOLO DESPUÉS de `List Documents`.**\n\nFLUJO DE TRABAJO OBLIGATORIO:\n1.  NUNCA usar directamente o después de RAG.\n2.  USAR OBLIGATORIAMENTE como Paso 4 del flujo principal si se necesita consultar datos tabulares.\n3.  **REQUISITO INDISPENSABLE:** Debes haber obtenido el `id` y el `schema` del documento tabular mediante `List Documents` en el Paso 3 inmediatamente anterior.\n4.  NUNCA omitir el paso de `List Documents`, incluso si RAG proporcionó metadatos como ID.\n\n**CRITICAL SQL SYNTAX RULE 1: QUOTES**\n*   **ALWAYS use SINGLE QUOTES (`'`) for string literals.**\n*   **NEVER use DOUBLE QUOTES (`\"`) for string literals.**\n*   **Correct Example:** `WHERE dataset_id = 'abc-123' AND row_data->>'Categoria' = 'Postres'`\n\n**CRITICAL SQL SYNTAX RULE 2: ALIASES (MUST USE!)**\n*   **You MUST use an explicit alias (e.g., `AS alias_name`) for EVERY column you select using `row_data->>'ColumnName'`.**\n*   **Correct Example:** `SELECT row_data->>'Nombre' AS nombre_plato, row_data->>'Precio' AS precio_plato ...`\n\n**CRITICAL SQL SYNTAX RULE 3: NUMERIC CASTING (PARENTHESES REQUIRED!)**\n*   **When comparing or ordering by a numeric value stored as text (e.g., 'Precio'), you MUST enclose the field extraction in parentheses `()` BEFORE casting to `::numeric` or `::float`.**\n*   **Correct Example (Filtering):** `... WHERE (row_data->>'Precio')::numeric < 10`\n*   **Correct Example (Ordering):** `... ORDER BY (row_data->>'Precio')::numeric ASC`\n*   **Incorrect Example (WILL FAIL):** `... WHERE row_data->>'Precio'::numeric < 10`\n*   **Incorrect Example (WILL FAIL):** `... ORDER BY row_data->>'Precio'::numeric ASC`\n\nCÓMO CONSTRUIR LA CONSULTA SQL (Inteligencia de Schema + Sintaxis Correcta):\n1.  Usa el `id` obtenido en la cláusula `WHERE dataset_id = '[ID_OBTENIDO_CON_COMILLAS_SIMPLES]'`.\n2.  Examina el `schema` obtenido de `List Documents` (ej: `\"Categoria, Nombre, Descripcion, Precio\"`).\n3.  **Identifica inteligentemente** qué nombres de columna del `schema` son necesarios.\n4.  **CRUCIAL: Usa los nombres de columna EXACTOS del `schema` obtenido de `List Documents`** para acceder a `row_data` (ej: `row_data->>'Nombre'`, `row_data->>'Precio'`). **NO inventes nombres de columna.**\n5.  **APLICA LA REGLA CRÍTICA DE ALIAS:** Añade `AS alias_descriptivo` a **CADA** columna seleccionada.\n6.  **APLICA LA REGLA CRÍTICA DE COMILLAS:** Usa **comillas simples (`'`)** para todos los valores de texto en `WHERE` o `ILIKE`.\n7.  **APLICA LA REGLA CRÍTICA DE CASTING NUMÉRICO:** Usa **paréntesis `()`** antes de `::numeric` o `::float` si comparas u ordenas por un número almacenado como texto.\n\nESTRUCTURA DE LA TABLA `document_rows`:\n-   `dataset_id`: ID del archivo (obtenido de `List Documents`).\n-   `row_data`: JSONB que contiene los datos de la fila, con claves que coinciden EXACTAMENTE con los nombres de columna del `schema`.\n\nRECUERDA:\n1.  El `id` y el `schema` de `List Documents` (paso anterior) son OBLIGATORIOS.\n2.  El agente DEBE usar inteligentemente el `schema` para elegir y escribir los nombres de columna correctos (`row_data->>'NombreColumnaDelSchema'`).\n3.  **LA SINTAXIS SQL DEBE SER PERFECTA: COMILLAS SIMPLES (`'`) PARA STRINGS, ALIAS (`AS ...`) PARA CADA COLUMNA SELECCIONADA, Y PARÉNTESIS `()` ANTES DE CASTING NUMÉRICO (`::numeric`).**\n4.  **NUNCA OMITAS EL PASO DE `List Documents`**.",
+        "operation": "executeQuery",
+        "query": "{{ $fromAI('sql_query') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        420,
+        360
+      ],
+      "id": "2d44eca9-a751-4efe-83d4-552beb0aacf1",
+      "name": "Query Document Rows1",
+      "credentials": {
+        "postgres": {
+          "id": "yZzoJeA6IQR8Xm9W",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "=Utilice esta herramienta para obtener los metadatos de TODOS los documentos disponibles desde Postgres. **Paso OBLIGATORIO y ÚNICO después de determinar que RAG inicial fue insuficiente y ANTES de usar `Query Document Rows` o `Get File Contents`.**\n\nFLUJO DE TRABAJO OBLIGATORIO:\n1.  NUNCA usar como primera acción (RAG es siempre primero).\n2.  USAR OBLIGATORIAMENTE si el Paso 2 del flujo principal determinó la necesidad de precisión.\n3.  USAR INMEDIATAMENTE ANTES de decidir entre `Query Document Rows` o `Get File Contents`.\n4.  NUNCA omitir este paso, incluso si RAG proporcionó metadatos como ID.\n\nPROPÓSITO CRÍTICO:\n1.  **Identificar Documentos**: Encuentra el/los documento(s) relevante(s) por `title`.\n2.  **Obtener ID**: Recupera el `id` exacto del/los documento(s). Este ID es OBLIGATORIO para el *siguiente* paso (`Query Document Rows` o `Get File Contents`).\n3.  **OBTENER SCHEMA (¡FUNDAMENTAL!)**: Para archivos tabulares (CSV, XLSX), devuelve el `schema` (lista exacta de nombres de columnas, ej: \"Categoria, Nombre, Descripcion, Precio\"). Esta información es ESENCIAL y DEBE ser usada para construir la consulta SQL en el *siguiente* paso si se elige `Query Document Rows`.\n\nLa herramienta devolverá una lista de documentos con `id`, `title`, `url`, `created_at`, `schema`.\n\n**ACCIÓN INMEDIATA POSTERIOR:** Una vez obtenidos el `id` (y `schema` si aplica), procede INMEDIATAMENTE al Paso 4 del flujo principal para usar `Query Document Rows` o `Get File Contents`.\n\nRECUERDA: Esta herramienta es el PUENTE INDISPENSABLE hacia los datos precisos. NUNCA la omitas. NUNCA vayas directamente de RAG a `Query Document Rows` o `Get File Contents`.",
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "document_metadata",
+          "mode": "list",
+          "cachedResultName": "document_metadata"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        80,
+        360
+      ],
+      "id": "500151da-9f5e-4b5a-9ae3-8d34c396fad6",
+      "name": "List Documents1",
+      "credentials": {
+        "postgres": {
+          "id": "yZzoJeA6IQR8Xm9W",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Realiza una consulta HTTP a la API de Qdrant para recuperar fragmentos de texto más específicos y relevantes de un documento, usando su ID y filtros adicionales. **Usar SOLO DESPUÉS de `List Documents`.**\n\nFLUJO DE TRABAJO OBLIGATORIO:\n1.  NUNCA usar directamente o después de RAG.\n2.  USAR OBLIGATORIAMENTE como Paso 4 del flujo principal si se necesita recuperar fragmentos precisos de documentos no tabulares (ej. PDFs) y RAG inicial fue insuficiente.\n3.  **REQUISITO INDISPENSABLE:** Debes haber obtenido el `id` del documento mediante `List Documents` en el Paso 3 inmediatamente anterior.\n4.  NUNCA omitir el paso de `List Documents`, incluso si RAG proporcionó metadatos como ID.\n\nCUÁNDO USARLA:\n*   Necesitas información más específica de documentos de texto (PDFs como Políticas, FAQs, Servicios Especiales) que los fragmentos generales de RAG.\n*   Quieres filtrar fragmentos dentro de un documento específico (`id`) basándote en palabras clave, contexto o criterios adicionales que la API de Qdrant permita.\n*   `Query Document Rows` no aplica (no es un archivo tabular).\n\nPARÁMETROS PROBABLES (Basado en el nodo HTTP y API Qdrant):\n-   `file_id` o similar: ID del documento (OBLIGATORIO, obtenido de `List Documents`) para filtrar la búsqueda en Qdrant.\n-   `query` o `keywords`: Términos de búsqueda para encontrar fragmentos relevantes dentro de ese documento.\n-   Otros filtros posibles: Parámetros adicionales que la API de Qdrant acepte para refinar la búsqueda de puntos/vectores.\n\nQUÉ ESPERAR:\n-   Una lista de fragmentos de texto (chunks) más específicos y relevantes del documento solicitado, recuperados directamente de Qdrant.\n\nCÓMO USAR LOS RESULTADOS:\n1.  Analiza los fragmentos específicos devueltos.\n2.  Verifica si contienen la información precisa que buscabas.\n3.  Sintetiza la respuesta final basada en estos fragmentos más precisos.\n\nMEJORES PRÁCTICAS:\n-   Úsala como un paso de refinamiento cuando RAG fue demasiado general pero necesitas información de un documento específico no tabular.\n-   Formula filtros o palabras clave precisas para obtener los mejores fragmentos.\n\nRECUERDA: Esta herramienta consulta Qdrant vía HTTP para obtener fragmentos precisos de un documento específico. Úsala SOLO después de `List Documents` cuando necesites refinar la búsqueda en documentos no tabulares.",
+        "method": "=POST",
+        "url": "https://3c854b2f-429b-44ab-87da-bb3c741597f8.us-east-1-0.aws.cloud.qdrant.io:6333/collections/documents/points/scroll",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "api-key",
+              "valueProvider": "fieldValue",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.sHm0OQTETDu0Fjezf1ZBSb6px8rUdP0wf7aJLRKTvJg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"filter\": {\n    \"must\": [\n      {\n        \"key\": \"metadata.file_id\",\n        \"match\": {\n          \"value\": {file_id}\n        }\n      }\n    ]\n  },\n  \"with_payload\": true,\n  \"limit\": {limit}\n}",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "file_id",
+              "description": "file_id obtenido del documento",
+              "type": "string"
+            },
+            {
+              "name": "limit",
+              "description": "Limite para obtener registros de qdrant, si la consulta requiere obtener le contenido de todos los documentos pon un limit alto para que obtenga todo, sino determínalo tu segun lo solicitado",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        360
+      ],
+      "id": "8580ee62-0c5c-45c2-aade-57d95cf05232",
+      "name": "Get File Contents1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -380,
+        20
+      ],
+      "id": "82c893b9-0667-4d10-8250-b1f71553791b",
+      "name": "When chat message received",
+      "webhookId": "b5194042-7b99-4829-9f69-752ef7c60974"
+    },
+    {
+      "parameters": {
+        "modelName": "embed-multilingual-v3.0"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsCohere",
+      "typeVersion": 1,
+      "position": [
+        640,
+        600
+      ],
+      "id": "02205a70-8030-4bb2-8a5f-74ed6b6b8462",
+      "name": "Embeddings Cohere",
+      "credentials": {
+        "cohereApi": {
+          "id": "IAtAbkxZAEB2xN2W",
+          "name": "CohereApi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Qdrant Vector Store1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Document Rows1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Documents1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File Contents1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Cohere": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8b9a44a5-57f8-46c6-8ed0-1c4abae5b175",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eddafe4b53a350db34ff34d3ee947bb1c841e511478d80c2d2187926a84dabba"
+  },
+  "id": "pljah5ktH8EeWQmc",
+  "tags": []
+}
